@@ -23,7 +23,6 @@ public class DistanceService {
     public LngLat calculateNextPosition(double lng, double lat, double angle) {
         BigDecimal forward_step = new BigDecimal("0.00015");
         double angle_radians = Math.toRadians(angle);
-       // System.out.println("angle_radians = " + angle_radians);
 
         BigDecimal delta_lat = forward_step.multiply(BigDecimal.valueOf(Math.sin(angle_radians)));
         BigDecimal delta_lng = forward_step.multiply(BigDecimal.valueOf(Math.cos(angle_radians)));
