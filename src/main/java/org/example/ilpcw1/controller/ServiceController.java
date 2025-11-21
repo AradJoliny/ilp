@@ -1,10 +1,8 @@
 package org.example.ilpcw1.controller;
 
-import org.example.ilpcw1.dto.NextPositionRequest;
-import org.example.ilpcw1.dto.PositionPairDTO;
-import org.example.ilpcw1.dto.RegionCheckDTO;
+import org.apache.coyote.Response;
+import org.example.ilpcw1.dto.*;
 import org.example.ilpcw1.model.LngLat;
-import org.example.ilpcw1.dto.PositionDTO;
 import org.example.ilpcw1.services.DistanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,17 +11,12 @@ import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.View;
 import org.example.ilpcw1.services.PositionValidator;
+import org.example.ilpcw1.client.IlpClient;
+import org.springframework.http.HttpStatus;
 
-
-import java.awt.*;
 import java.awt.geom.Path2D;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-
+import java.util.*;
 
 
 @RestController
@@ -34,7 +27,8 @@ public class ServiceController {
     private DistanceService distanceService;
     @Autowired
     private PositionValidator positionValidator;
-
+    @Autowired
+    private IlpClient IlpClient;
 
     /**
      * Handles GET requests to "/uid" and returns the my student id as a string
@@ -227,11 +221,76 @@ public class ServiceController {
         }
     }
 
+    // COURSEWORK 2 STARTING POINT
+
+
+    @GetMapping("/dronesWithCooling/{state}")
+    public ResponseEntity<List<String>> dronesWithCooling(@PathVariable boolean state) {
+        try {
+            List<String> ids = IlpClient.getDronesWithCooling(state);
+            return ResponseEntity.ok(ids);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
+
+    @GetMapping("/droneDetails/{id}")
+    public ResponseEntity<DroneDTO> droneDetails(@PathVariable String id) {
+        try {
+            DroneDTO drone = IlpClient.getDroneDetails(id);
+            return ResponseEntity.ok(drone);
+        } catch (ResponseStatusException e) {
+            throw e;
+        }  catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
+
+    // Q3 (a)
+    @GetMapping("/queryAsPath/{attribute}/{attribute_value}")
+    public ResponseEntity<List<String>> queryAsPath(@PathVariable String attribute, @PathVariable String attribute_value) {
+        try {
+            List<String> droneIds = IlpClient.getDronesWithAttribute(attribute, attribute_value);
+            return ResponseEntity.ok(droneIds);
+
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
+
+    // Q3 (b)
+    @PostMapping("/query")
+    public ResponseEntity<List<String>> query(@RequestBody List<QueryAttributeDTO> queryAttributeDTO) {
+        try {
+            List<String> droneIds = IlpClient.getDronesWithAttributes(queryAttributeDTO);
+            return ResponseEntity.ok(droneIds);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+    }
+
+    // Q4
+    @PostMapping("/queryAvailableDrones")
+    public ResponseEntity<List<String>> queryAvailableDrones(@RequestBody List<MedDispatchRecDTO> requirements) {
+        try {
+            List<String> droneIds = IlpClient.queryAvailableDrones(requirements);
+            return ResponseEntity.ok(droneIds);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+
+    }
 
 
 
-
-
-
-
-} // Service controller def
+} // Service controller defining bracket
