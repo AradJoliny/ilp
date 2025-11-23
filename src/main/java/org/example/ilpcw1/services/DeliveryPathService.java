@@ -29,21 +29,19 @@ public class DeliveryPathService {
 
     public DeliveryPathDTO calculateDeliveryPath(List<MedDispatchRecDTO> dispatches) {
         try {
-            // Retrieve available drones
+            // get available drones
             List<String> availableDrones = ilpClient.queryAvailableDrones(dispatches);
             ServicePointDronesDTO[] servicePoints = ilpClient.getServicePointsWithDrones();
             ServicePointDTO[] servicePointsWithLocations = ilpClient.getServicePoints();
 
-            // Aggregate requirements
             DispatchAggregationService.AggregatedRequirements aggregated = dispatchAggregationService.aggregateRequirements(dispatches);
 
-            // Assign dispatches to drones
+            // assign dispatches to drones
             Map<String, List<MedDispatchRecDTO>> droneAssignments = assignDispatchesToDrones(dispatches, availableDrones, servicePoints, servicePointsWithLocations, aggregated);
 
             if (droneAssignments.isEmpty()) {
                 log.info("No drones have been chosen for delivery (assignments empty) - aborting calculations.");
             } else {
-                // Build compact assignment summary: droneId:[id1,id2] droneId2:[...]
                 StringBuilder summary = new StringBuilder();
                 for (Map.Entry<String, List<MedDispatchRecDTO>> e : droneAssignments.entrySet()) {
                     summary.append(e.getKey()).append(":[");
@@ -58,11 +56,10 @@ public class DeliveryPathService {
                         droneAssignments.keySet(), summary.toString().trim());
             }
 
-            // Fetch no-fly zones
+            // get no-fly zones
             NoFlyZoneDTO[] noFlyZonesResponse = ilpClient.getNoFlyZones();
             List<NoFlyZoneDTO> noFlyZones = noFlyZonesResponse != null ? Arrays.asList(noFlyZonesResponse) : Collections.emptyList();
 
-            // Calculate paths and build result
             DeliveryPathDTO result = new DeliveryPathDTO();
             List<DronePathDTO> dronePaths = new ArrayList<>();
             double totalCost = 0.0;
@@ -94,18 +91,17 @@ public class DeliveryPathService {
                 log.info("Drone {} - Total maxCost requirement: {}", droneId, totalMaxCost);
 
 
-                // Find service point
+                // find service point
                 ServicePointDTO servicePoint = findServicePointForDrone(droneId, servicePoints, servicePointsWithLocations);
                 if (servicePoint == null) continue;
                 LngLat start = new LngLat(servicePoint.getLocation().getLng(), servicePoint.getLocation().getLat());
 
-                // Sort dispatches by distance
+                // sort dispatches by distance
                 assignedDispatches.sort(Comparator.comparingDouble(d -> distanceService.calculateDistance(start.getLng(), start.getLat(), d.getDelivery().getLng(), d.getDelivery().getLat())));
-                // Build deliveries with flight paths
+                // make deliveries with flight paths
                 List<DeliveryDTO> deliveries = buildDeliveries(start, assignedDispatches, noFlyZones, maxMoves, costPerMove);
                 if (deliveries.isEmpty()) continue;
 
-                // Calculate totals
                 int droneMovesUsed = 0;
                 for (DeliveryDTO delivery : deliveries) {
                     droneMovesUsed += delivery.getFlightPath().size() - 1;
@@ -172,7 +168,6 @@ public class DeliveryPathService {
             if (droneAssignments.isEmpty()) {
                 log.info("No drones have been chosen for delivery (assignments empty) - aborting calculations.");
             } else {
-                // Build compact assignment summary: droneId:[id1,id2] droneId2:[...]
                 StringBuilder summary = new StringBuilder();
                 for (Map.Entry<String, List<MedDispatchRecDTO>> e : droneAssignments.entrySet()) {
                     summary.append(e.getKey()).append(":[");
@@ -187,7 +182,6 @@ public class DeliveryPathService {
                         droneAssignments.keySet(), summary.toString().trim());
             }
 
-            // Rest of the calculation logic (same as calculateDeliveryPath)
             NoFlyZoneDTO[] noFlyZonesResponse = ilpClient.getNoFlyZones();
             List<NoFlyZoneDTO> noFlyZones = noFlyZonesResponse != null ?
                     Arrays.asList(noFlyZonesResponse) : Collections.emptyList();
