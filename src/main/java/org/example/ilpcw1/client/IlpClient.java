@@ -283,17 +283,16 @@ public class IlpClient {
         }
         log.info("Available drones after time check: {}", available_drones.stream().map(DroneDTO::getId).toList());
 
-        // 2. Aggregate requirements from all dispatch records
-        DispatchAggregationService.AggregatedRequirements aggregated = dispatchAggregationService.aggregateRequirements(reqs);
-        boolean needsCooling = aggregated.needsCooling();
-        boolean needsHeating = aggregated.needsHeating();
-        double totalCapacity = aggregated.totalCapacity();
-        log.info("Aggregated requirements: needsCooling={}, needsHeating={}, totalCapacity={}", needsCooling, needsHeating, totalCapacity);
+        // 2. Filter by cooling/heating requirements only
+        boolean needsCooling = reqs.stream()
+                .anyMatch(r -> r.getRequirements() != null && Boolean.TRUE.equals(r.getRequirements().getCooling()));
+        boolean needsHeating = reqs.stream()
+                .anyMatch(r -> r.getRequirements() != null && Boolean.TRUE.equals(r.getRequirements().getHeating()));
+        log.info("Requirements: needsCooling={}, needsHeating={}", needsCooling, needsHeating);
 
-        // 3. Filter available drones based on requirements
+        // 3. Filter available drones based on cooling/heating ONLY (not capacity)
         List<String> availableDroneIds = new ArrayList<>();
         for (DroneDTO drone : available_drones) {
-            // Skip drones without capability
             if (drone.getCapability() == null) {
                 log.info("Drone {} skipped: no capability", drone.getId());
                 continue;
@@ -301,16 +300,14 @@ public class IlpClient {
 
             boolean hasCooling = drone.getCapability().isCooling();
             boolean hasHeating = drone.getCapability().isHeating();
-            double droneCapacity = drone.getCapability().getCapacity();
-            boolean meetsCapacity = droneCapacity >= totalCapacity;
-            log.info("Drone {}: hasCooling={}, hasHeating={}, meetsCapacity={}, capacity={}", drone.getId(), hasCooling, hasHeating, meetsCapacity, droneCapacity);
 
-            if ((!needsCooling || hasCooling) && (!needsHeating || hasHeating) && meetsCapacity) {
+            // Only check cooling/heating requirements, NOT total capacity
+            if ((!needsCooling || hasCooling) && (!needsHeating || hasHeating)) {
                 availableDroneIds.add(drone.getId());
+                log.info("Drone {} added: hasCooling={}, hasHeating={}", drone.getId(), hasCooling, hasHeating);
             }
         }
 
-        // 4. Return list of available drone IDs
         log.info("Final available drone IDs: {}", availableDroneIds);
         return availableDroneIds;
     }

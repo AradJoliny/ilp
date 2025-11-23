@@ -40,6 +40,24 @@ public class DeliveryPathService {
             // Assign dispatches to drones
             Map<String, List<MedDispatchRecDTO>> droneAssignments = assignDispatchesToDrones(dispatches, availableDrones, servicePoints, servicePointsWithLocations, aggregated);
 
+            if (droneAssignments.isEmpty()) {
+                log.info("No drones have been chosen for delivery (assignments empty) - aborting calculations.");
+            } else {
+                // Build compact assignment summary: droneId:[id1,id2] droneId2:[...]
+                StringBuilder summary = new StringBuilder();
+                for (Map.Entry<String, List<MedDispatchRecDTO>> e : droneAssignments.entrySet()) {
+                    summary.append(e.getKey()).append(":[");
+                    List<MedDispatchRecDTO> list = e.getValue();
+                    for (int i = 0; i < list.size(); i++) {
+                        summary.append(list.get(i).getId());
+                        if (i < list.size() - 1) summary.append(",");
+                    }
+                    summary.append("] ");
+                }
+                log.info("Selected drones before calculations: {}. Assignment summary: {}",
+                        droneAssignments.keySet(), summary.toString().trim());
+            }
+
             // Fetch no-fly zones
             NoFlyZoneDTO[] noFlyZonesResponse = ilpClient.getNoFlyZones();
             List<NoFlyZoneDTO> noFlyZones = noFlyZonesResponse != null ? Arrays.asList(noFlyZonesResponse) : Collections.emptyList();
@@ -113,7 +131,7 @@ public class DeliveryPathService {
             log.info("Total moves used: {}", totalMoves);
             return result;
         } catch (Exception e) {
-            // Log the exception (use a logger in production)
+            // Log the exception
             System.err.println("Error in calculateDeliveryPath: " + e.getMessage());
             e.printStackTrace();
             // Return a default or error response
@@ -146,6 +164,24 @@ public class DeliveryPathService {
             // Assign all dispatches to the single drone
             Map<String, List<MedDispatchRecDTO>> droneAssignments =
                     assignDispatchesToDrones(dispatches, singleDrone, servicePoints, servicePointsWithLocations, aggregated);
+
+            if (droneAssignments.isEmpty()) {
+                log.info("No drones have been chosen for delivery (assignments empty) - aborting calculations.");
+            } else {
+                // Build compact assignment summary: droneId:[id1,id2] droneId2:[...]
+                StringBuilder summary = new StringBuilder();
+                for (Map.Entry<String, List<MedDispatchRecDTO>> e : droneAssignments.entrySet()) {
+                    summary.append(e.getKey()).append(":[");
+                    List<MedDispatchRecDTO> list = e.getValue();
+                    for (int i = 0; i < list.size(); i++) {
+                        summary.append(list.get(i).getId());
+                        if (i < list.size() - 1) summary.append(",");
+                    }
+                    summary.append("] ");
+                }
+                log.info("Selected drones before calculations: {}. Assignment summary: {}",
+                        droneAssignments.keySet(), summary.toString().trim());
+            }
 
             // Rest of the calculation logic (same as calculateDeliveryPath)
             NoFlyZoneDTO[] noFlyZonesResponse = ilpClient.getNoFlyZones();
@@ -233,20 +269,39 @@ public class DeliveryPathService {
     }
 
 
-    private Map<String, List<MedDispatchRecDTO>> assignDispatchesToDrones(List<MedDispatchRecDTO> dispatches, List<String> availableDrones, ServicePointDronesDTO[] servicePoints, ServicePointDTO[] servicePointsWithLocations, DispatchAggregationService.AggregatedRequirements aggregated) {
+    private Map<String, List<MedDispatchRecDTO>> assignDispatchesToDrones(
+            List<MedDispatchRecDTO> dispatches,
+            List<String> availableDrones,
+            ServicePointDronesDTO[] servicePoints,
+            ServicePointDTO[] servicePointsWithLocations,
+            DispatchAggregationService.AggregatedRequirements aggregated) {
+
         Map<String, List<MedDispatchRecDTO>> assignments = new HashMap<>();
+
         for (MedDispatchRecDTO dispatch : dispatches) {
+            // Create individual requirements for THIS dispatch
+            DispatchAggregationService.AggregatedRequirements individualReq =
+                    dispatchAggregationService.aggregateRequirements(Collections.singletonList(dispatch));
+
             ServicePointDronesDTO bestServicePoint = null;
             String assignedDrone = null;
             double minDistance = Double.MAX_VALUE;
+
             for (ServicePointDronesDTO servicePoint : servicePoints) {
                 for (ServicePointDronesDTO.DroneWithAvailabilityDTO drone : servicePoint.getDrones()) {
                     if (availableDrones.contains(drone.getId())) {
                         DroneDTO droneDetails = ilpClient.getDroneDetails(drone.getId());
-                        if (availabilityService.matchesRequirements(droneDetails, aggregated)) {
-                            ServicePointDTO locationSP = findServicePointById(servicePoint.getServicePointId(), servicePointsWithLocations);
+
+                        // Check against INDIVIDUAL dispatch requirements, not total
+                        if (availabilityService.matchesRequirements(droneDetails, individualReq)) {
+                            ServicePointDTO locationSP = findServicePointById(
+                                    servicePoint.getServicePointId(), servicePointsWithLocations);
                             if (locationSP != null) {
-                                double distance = distanceService.calculateDistance(dispatch.getDelivery().getLng(), dispatch.getDelivery().getLat(), locationSP.getLocation().getLng(), locationSP.getLocation().getLat());
+                                double distance = distanceService.calculateDistance(
+                                        dispatch.getDelivery().getLng(),
+                                        dispatch.getDelivery().getLat(),
+                                        locationSP.getLocation().getLng(),
+                                        locationSP.getLocation().getLat());
                                 if (distance < minDistance) {
                                     minDistance = distance;
                                     bestServicePoint = servicePoint;
@@ -257,12 +312,14 @@ public class DeliveryPathService {
                     }
                 }
             }
+
             if (assignedDrone != null) {
                 assignments.computeIfAbsent(assignedDrone, k -> new ArrayList<>()).add(dispatch);
             }
         }
         return assignments;
     }
+
 
     private ServicePointDTO findServicePointForDrone(String droneId, ServicePointDronesDTO[] servicePoints, ServicePointDTO[] servicePointsWithLocations) {
         for (ServicePointDTO sp : servicePointsWithLocations) {
