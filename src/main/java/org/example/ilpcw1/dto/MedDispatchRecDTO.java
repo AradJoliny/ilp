@@ -8,7 +8,7 @@ public class MedDispatchRecDTO {
     private String date;
     private String time;
     private Requirements requirements;
-    private LngLat location;
+    private LngLat delivery;
 
     public MedDispatchRecDTO() {}
 
@@ -23,6 +23,9 @@ public class MedDispatchRecDTO {
 
     public Requirements getRequirements() { return requirements; }
     public void setRequirements(Requirements requirements) { this.requirements = requirements; }
+
+    public LngLat getDelivery() { return delivery; }
+    public void setDelivery(LngLat delivery) { this.delivery = delivery; }
 
     public static class Requirements {
         private Double capacity;     // required

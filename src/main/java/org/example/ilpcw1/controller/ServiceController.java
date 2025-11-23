@@ -3,14 +3,13 @@ package org.example.ilpcw1.controller;
 import org.apache.coyote.Response;
 import org.example.ilpcw1.dto.*;
 import org.example.ilpcw1.model.LngLat;
-import org.example.ilpcw1.services.DistanceService;
+import org.example.ilpcw1.services.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.View;
-import org.example.ilpcw1.services.PositionValidator;
 import org.example.ilpcw1.client.IlpClient;
 import org.springframework.http.HttpStatus;
 
@@ -29,6 +28,14 @@ public class ServiceController {
     private PositionValidator positionValidator;
     @Autowired
     private IlpClient IlpClient;
+    @Autowired
+    private DispatchAggregationService dispatchAggregationService;
+    @Autowired
+    private AvailabilityService availabilityService;
+    @Autowired
+    private PathService pathService;
+    @Autowired
+    private DeliveryPathService deliveryPathService;
 
     /**
      * Handles GET requests to "/uid" and returns the my student id as a string
@@ -291,6 +298,25 @@ public class ServiceController {
 
     }
 
+//    @PostMapping("/calcDeliveryPath")
+//    public ResponseEntity<DeliveryPathDTO> calcDeliveryPath(@RequestBody List<MedDispatchRecDTO> dispatches) {
+//        try {
+//            DeliveryPathDTO result = deliveryPathService.calculateDeliveryPath(dispatches);
+//            return ResponseEntity.ok(result);
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+//        }
+//    }
 
+    @PostMapping("/calcDeliveryPath")
+    public ResponseEntity<String> calcDeliveryPath(@RequestBody List<MedDispatchRecDTO> dispatches) {
+        try {
+            DeliveryPathDTO result = deliveryPathService.calculateDeliveryPath(dispatches);
+            String geoJson = deliveryPathService.toGeoJson(result);
+            return ResponseEntity.ok(geoJson);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
 } // Service controller defining bracket

@@ -1,15 +1,9 @@
-package org.example.ilpcw1.model;
+package org.example.ilpcw1.dto;
 
-public class LngLat {
+public class VertexDTO {
     private double lng;
     private double lat;
-
-    public LngLat() {}
-
-    public LngLat(double lng, double lat) {
-        this.lng = lng;
-        this.lat = lat;
-    }
+    private double alt;
 
     public double getLng() {
         return lng;
@@ -27,4 +21,11 @@ public class LngLat {
         this.lat = lat;
     }
 
+    public double getAlt() {
+        return alt;
+    }
+
+    public void setAlt(double alt) {
+        this.alt = alt;
+    }
 }
