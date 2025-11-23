@@ -40,8 +40,6 @@ public class OperatorService {
         return droneIds;
     }
 
-    // New method to match a drone against a query attribute NOW CLEAN UP ILPCLIENT
-
     public boolean matchesQuery(DroneDTO drone, QueryAttributeDTO query) {
         Map<String, Double> attributes = drone.getCapability().getAttributes();
         if (attributes == null || !attributes.containsKey(query.getAttribute())) {

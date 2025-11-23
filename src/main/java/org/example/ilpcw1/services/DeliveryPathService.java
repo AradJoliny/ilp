@@ -84,8 +84,13 @@ public class DeliveryPathService {
                         droneId, costPerMove, takeoffCost, returnCost, maxMoves);
 
 
-                double totalMaxCost = (takeoffCost + returnCost) + (maxMoves * costPerMove);
-                log.info("(takeoffCost {} + returnCost {} ) + (maxMoves {} * costPerMove {} )", takeoffCost, returnCost, maxMoves, costPerMove);
+                int assignedCount = assignedDispatches == null ? 0 : assignedDispatches.size();
+                if (assignedCount == 0) {
+                    // nothing assigned to this drone — skip
+                    continue;
+                }
+                double totalMaxCost = (takeoffCost + returnCost) + ((maxMoves * costPerMove) / (double) assignedCount);
+                log.info("(takeoffCost {} + returnCost {} ) + (maxMoves {} * costPerMove {} ) divided by {} dispatches", takeoffCost, returnCost, maxMoves, costPerMove, assignedCount);
                 log.info("Drone {} - Total maxCost requirement: {}", droneId, totalMaxCost);
 
 
@@ -109,7 +114,6 @@ public class DeliveryPathService {
                 // Apply the formula: Total Cost = (takeoff + return) + (moves * costPerMove)
                 double droneTotalCost = (takeoffCost + returnCost) + (droneMovesUsed * costPerMove);
 
-                // Check if cost exceeds requirements BEFORE adding to totals
                 if (droneTotalCost > totalMaxCost) {
                     log.warn("Drone {} cost {} exceeds maxCost requirement {}, skipping",
                             droneId, droneTotalCost, totalMaxCost);
@@ -234,7 +238,6 @@ public class DeliveryPathService {
                 // Apply the formula: Total Cost = (takeoff + return) + (moves * costPerMove)
                 double droneTotalCost = (takeoffCost + returnCost) + (droneMovesUsed * costPerMove);
 
-                // Check if cost exceeds requirements BEFORE adding to totals
                 if (droneTotalCost > totalMaxCost) {
                     log.warn("Drone {} cost {} exceeds maxCost requirement {}, skipping",
                             droneId, droneTotalCost, totalMaxCost);
@@ -256,7 +259,6 @@ public class DeliveryPathService {
             log.info("Total moves used: {}", totalMoves);
             return result;
         } catch (Exception e) {
-            // Log the exception (use a logger in production)
             System.err.println("Error in calculateDeliveryPath: " + e.getMessage());
             e.printStackTrace();
             // Return a default or error response
@@ -279,7 +281,6 @@ public class DeliveryPathService {
         Map<String, List<MedDispatchRecDTO>> assignments = new HashMap<>();
 
         for (MedDispatchRecDTO dispatch : dispatches) {
-            // Create individual requirements for THIS dispatch
             DispatchAggregationService.AggregatedRequirements individualReq =
                     dispatchAggregationService.aggregateRequirements(Collections.singletonList(dispatch));
 
@@ -292,7 +293,6 @@ public class DeliveryPathService {
                     if (availableDrones.contains(drone.getId())) {
                         DroneDTO droneDetails = ilpClient.getDroneDetails(drone.getId());
 
-                        // Check against INDIVIDUAL dispatch requirements, not total
                         if (availabilityService.matchesRequirements(droneDetails, individualReq)) {
                             ServicePointDTO locationSP = findServicePointById(
                                     servicePoint.getServicePointId(), servicePointsWithLocations);
@@ -302,8 +302,14 @@ public class DeliveryPathService {
                                         dispatch.getDelivery().getLat(),
                                         locationSP.getLocation().getLng(),
                                         locationSP.getLocation().getLat());
-                                if (distance < minDistance) {
-                                    minDistance = distance;
+
+                                // Add penalty for drones with existing assignments
+                                int currentAssignments = assignments.getOrDefault(drone.getId(), Collections.emptyList()).size();
+                                double adjustedDistance = distance * (1.0 + currentAssignments * 2.0);
+
+                                double waste = adjustedDistance - minDistance;
+                                if (minDistance == Double.MAX_VALUE || waste < 0) {
+                                    minDistance = adjustedDistance;
                                     bestServicePoint = servicePoint;
                                     assignedDrone = drone.getId();
                                 }
@@ -367,16 +373,15 @@ public class DeliveryPathService {
                 break;
             }
 
-            // Add hover at delivery location (duplicate LngLat)
+            // Add hover at the delivery location (duplicate LngLat)
             segment.add(target);
             movesUsed += segment.size() - 1;
 
-            // If this is the last delivery, append return path to service point
+            // If this is the last delivery, append a return path to service point
             if (isLastDelivery) {
                 remainingMoves = maxMoves - movesUsed;
                 List<LngLat> returnSegment = pathService.findPath(target, start, noFlyZones, remainingMoves);
                 if (!returnSegment.isEmpty()) {
-                    // Don't remove first point - keep it to show hover
                     segment.addAll(returnSegment);
                     movesUsed += returnSegment.size();
                 }

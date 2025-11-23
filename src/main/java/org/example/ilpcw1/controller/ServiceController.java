@@ -323,16 +323,17 @@ public class ServiceController {
         }
     }
 
-//    @PostMapping("/calcDeliveryPath")
-//    public ResponseEntity<String> calcDeliveryPath(@RequestBody List<MedDispatchRecDTO> dispatches) {
-//        try {
-//            DeliveryPathDTO result = deliveryPathService.calculateDeliveryPath(dispatches);
-//            String geoJson = deliveryPathService.toGeoJson(result);
-//            return ResponseEntity.ok(geoJson);
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-//        }
-//    }
+    @PostMapping("/calcDeliveryPathGEO")
+    public ResponseEntity<String> calcDeliveryPathGEO(@RequestBody List<MedDispatchRecDTO> dispatches) {
+        try {
+            DeliveryPathDTO result = deliveryPathService.calculateDeliveryPath(dispatches);
+            String geoJson = deliveryPathService.toGeoJson(result);
+            return ResponseEntity.ok(geoJson);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
 
     @PostMapping("/calcDeliveryPathAsGeoJson")
     public ResponseEntity<String> calcDeliveryPathAsGeoJson(@RequestBody List<MedDispatchRecDTO> dispatches) {

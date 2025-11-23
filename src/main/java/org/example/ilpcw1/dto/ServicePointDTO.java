@@ -5,7 +5,6 @@ public class ServicePointDTO {
     private long id;
     private LocationDTO location;
 
-    // Getters and setters
     public String getName() {
         return name;
     }
@@ -35,7 +34,6 @@ public class ServicePointDTO {
         private double lat;
         private double alt;
 
-        // Getters and setters
         public double getLng() {
             return lng;
         }

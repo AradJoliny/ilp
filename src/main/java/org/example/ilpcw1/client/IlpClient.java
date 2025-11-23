@@ -36,7 +36,6 @@ public class IlpClient {
     private final DispatchAggregationService dispatchAggregationService;
 
 
-    // Constructor must come before methods
     public IlpClient(OperatorService operatorService, AvailabilityService availabilityService, DispatchAggregationService dispatchAggregationService) {
         this.operatorService = operatorService;
         this.availabilityService = availabilityService;
@@ -173,7 +172,7 @@ public class IlpClient {
             ResponseEntity<String> rawResponse = rest.getForEntity(url, String.class);
             log.info("Raw JSON response: {}", rawResponse.getBody());
 
-            // Then try to deserialize
+            // Then deserialize
             ResponseEntity<ServicePointDronesDTO[]> response = rest.getForEntity(url, ServicePointDronesDTO[].class);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 log.warn("Unexpected ILP response: status={} bodyNull={}", response.getStatusCode(), response.getBody() == null);
@@ -243,11 +242,6 @@ public class IlpClient {
     }
 
     public List<String> queryAvailableDrones(List<MedDispatchRecDTO> reqs) {
-        // Need to check:
-        // 1. Drone is available (not busy)
-        // 2. Drone has cooling if any request needs cooling
-        // 3. Drone has sufficient capacity for weight and volume of all requests
-
         String url = ilpEndpoint;
         if (!url.endsWith("/")) url += "/";
         url += "drones";
@@ -361,7 +355,7 @@ public class IlpClient {
             ResponseEntity<String> rawResponse = rest.getForEntity(url, String.class);
             log.info("Raw JSON response for no-fly zones: {}", rawResponse.getBody());
 
-            // Then try to deserialize
+            // Then deserialize
             ResponseEntity<NoFlyZoneDTO[]> response = rest.getForEntity(url, NoFlyZoneDTO[].class);
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unexpected response from ILP service");

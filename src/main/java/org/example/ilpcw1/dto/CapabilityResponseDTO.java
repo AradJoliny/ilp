@@ -19,7 +19,6 @@ public class CapabilityResponseDTO {
         this.costFinal = costFinal;
     }
 
-    // Getters
     public boolean isCooling() { return cooling; }
     public boolean isHeating() { return heating; }
     public double getCapacity() { return capacity; }
