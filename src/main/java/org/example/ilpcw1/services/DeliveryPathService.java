@@ -125,6 +125,114 @@ public class DeliveryPathService {
         }
     }
 
+    public DeliveryPathDTO calculateSingleDroneDeliveryPath(List<MedDispatchRecDTO> dispatches) {
+        try {
+            // Retrieve available drones and select only one
+            List<String> availableDrones = ilpClient.queryAvailableDrones(dispatches);
+
+            if (availableDrones.isEmpty()) {
+                throw new IllegalStateException("No available drones for these dispatches");
+            }
+
+            // Force use of only the first available drone
+            List<String> singleDrone = Collections.singletonList(availableDrones.get(0));
+
+            ServicePointDronesDTO[] servicePoints = ilpClient.getServicePointsWithDrones();
+            ServicePointDTO[] servicePointsWithLocations = ilpClient.getServicePoints();
+
+            DispatchAggregationService.AggregatedRequirements aggregated =
+                    dispatchAggregationService.aggregateRequirements(dispatches);
+
+            // Assign all dispatches to the single drone
+            Map<String, List<MedDispatchRecDTO>> droneAssignments =
+                    assignDispatchesToDrones(dispatches, singleDrone, servicePoints, servicePointsWithLocations, aggregated);
+
+            // Rest of the calculation logic (same as calculateDeliveryPath)
+            NoFlyZoneDTO[] noFlyZonesResponse = ilpClient.getNoFlyZones();
+            List<NoFlyZoneDTO> noFlyZones = noFlyZonesResponse != null ?
+                    Arrays.asList(noFlyZonesResponse) : Collections.emptyList();
+
+            DeliveryPathDTO result = new DeliveryPathDTO();
+            List<DronePathDTO> dronePaths = new ArrayList<>();
+            double totalCost = 0.0;
+            int totalMoves = 0;
+
+            for (Map.Entry<String, List<MedDispatchRecDTO>> entry : droneAssignments.entrySet()) {
+                String droneId = entry.getKey();
+                List<MedDispatchRecDTO> assignedDispatches = entry.getValue();
+
+                // Aggregate maxCost and calculate maxMoves
+
+                DroneDTO droneDetails = ilpClient.getDroneDetails(droneId);
+                double costPerMove = droneDetails.getCapability().getCostPerMove();
+                double takeoffCost = droneDetails.getCapability().getCostInitial();
+                double returnCost = droneDetails.getCapability().getCostFinal();
+                double maxMoves = droneDetails.getCapability().getMaxMoves();
+
+                log.info("Drone {} details: costPerMove={}, takeoffCost={}, returnCost={}, maxMoves={}",
+                        droneId, costPerMove, takeoffCost, returnCost, maxMoves);
+
+
+                double totalMaxCost = (takeoffCost + returnCost) + (maxMoves * costPerMove);
+                log.info("(takeoffCost {} + returnCost {} ) + (maxMoves {} * costPerMove {} )", takeoffCost, returnCost, maxMoves, costPerMove);
+                log.info("Drone {} - Total maxCost requirement: {}", droneId, totalMaxCost);
+
+
+                // Find service point
+                ServicePointDTO servicePoint = findServicePointForDrone(droneId, servicePoints, servicePointsWithLocations);
+                if (servicePoint == null) continue;
+                LngLat start = new LngLat(servicePoint.getLocation().getLng(), servicePoint.getLocation().getLat());
+
+                // Sort dispatches by distance
+                assignedDispatches.sort(Comparator.comparingDouble(d -> distanceService.calculateDistance(start.getLng(), start.getLat(), d.getDelivery().getLng(), d.getDelivery().getLat())));
+                // Build deliveries with flight paths
+                List<DeliveryDTO> deliveries = buildDeliveries(start, assignedDispatches, noFlyZones, maxMoves, costPerMove);
+                if (deliveries.isEmpty()) continue;
+
+                // Calculate totals
+                int droneMovesUsed = 0;
+                for (DeliveryDTO delivery : deliveries) {
+                    droneMovesUsed += delivery.getFlightPath().size() - 1;
+                }
+
+                // Apply the formula: Total Cost = (takeoff + return) + (moves * costPerMove)
+                double droneTotalCost = (takeoffCost + returnCost) + (droneMovesUsed * costPerMove);
+
+                // Check if cost exceeds requirements BEFORE adding to totals
+                if (droneTotalCost > totalMaxCost) {
+                    log.warn("Drone {} cost {} exceeds maxCost requirement {}, skipping",
+                            droneId, droneTotalCost, totalMaxCost);
+                    continue;
+                }
+
+                totalMoves += droneMovesUsed;
+                totalCost += droneTotalCost;
+
+                DronePathDTO dronePath = new DronePathDTO();
+                dronePath.setDroneId(droneId);
+                dronePath.setDeliveries(deliveries);
+                dronePaths.add(dronePath);
+            }
+
+            result.setDronePaths(dronePaths);
+            result.setTotalCost(totalCost);
+            result.setTotalMoves(totalMoves);
+            log.info("Total moves used: {}", totalMoves);
+            return result;
+        } catch (Exception e) {
+            // Log the exception (use a logger in production)
+            System.err.println("Error in calculateDeliveryPath: " + e.getMessage());
+            e.printStackTrace();
+            // Return a default or error response
+            DeliveryPathDTO errorResult = new DeliveryPathDTO();
+            errorResult.setTotalCost(0.0);
+            errorResult.setTotalMoves(0);
+            errorResult.setDronePaths(Collections.emptyList());
+            return errorResult;
+        }
+    }
+
+
     private Map<String, List<MedDispatchRecDTO>> assignDispatchesToDrones(List<MedDispatchRecDTO> dispatches, List<String> availableDrones, ServicePointDronesDTO[] servicePoints, ServicePointDTO[] servicePointsWithLocations, DispatchAggregationService.AggregatedRequirements aggregated) {
         Map<String, List<MedDispatchRecDTO>> assignments = new HashMap<>();
         for (MedDispatchRecDTO dispatch : dispatches) {

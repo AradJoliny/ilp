@@ -244,16 +244,31 @@ public class ServiceController {
     }
 
     @GetMapping("/droneDetails/{id}")
-    public ResponseEntity<DroneDTO> droneDetails(@PathVariable String id) {
+    public ResponseEntity<DroneDetailsResponseDTO> droneDetails(@PathVariable String id) {
         try {
             DroneDTO drone = IlpClient.getDroneDetails(id);
-            return ResponseEntity.ok(drone);
+            CapabilityResponseDTO capability = new CapabilityResponseDTO(
+                    drone.getCapability().isCooling(),
+                    drone.getCapability().isHeating(),
+                    drone.getCapability().getCapacity(),
+                    (int) drone.getCapability().getMaxMoves(),
+                    drone.getCapability().getCostPerMove(),
+                    drone.getCapability().getCostInitial(),
+                    drone.getCapability().getCostFinal()
+            );
+            DroneDetailsResponseDTO response = new DroneDetailsResponseDTO(
+                    drone.getName(),
+                    drone.getId(),
+                    capability
+            );
+            return ResponseEntity.ok(response);
         } catch (ResponseStatusException e) {
             throw e;
-        }  catch (Exception e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
     }
+
 
     // Q3 (a)
     @GetMapping("/queryAsPath/{attribute}/{attribute_value}")
@@ -318,5 +333,17 @@ public class ServiceController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+
+    @PostMapping("/calcDeliveryPathAsGeoJson")
+    public ResponseEntity<String> calcDeliveryPathAsGeoJson(@RequestBody List<MedDispatchRecDTO> dispatches) {
+        try {
+            DeliveryPathDTO result = deliveryPathService.calculateSingleDroneDeliveryPath(dispatches);
+            String geoJson = deliveryPathService.toGeoJson(result);
+            return ResponseEntity.ok(geoJson);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
 
 } // Service controller defining bracket
